@@ -7,26 +7,30 @@
 */
 
 
-// Change values with //*** 
-
 
 // LIBRARIES
 
 #include <MIDI.h> // by Francois Best
 #include <Adafruit_ADS1X15.h>
+#include <MPR121.h>
+#include <MPR121_Datastream.h>
+#include <Wire.h>
 
 Adafruit_ADS1115 ads;  /* Use this for the 16-bit version */
 MIDI_CREATE_DEFAULT_INSTANCE(); 
 
-#define NO_OF_POTENTIOMETERS 9
+#define NO_OF_POTENTIOMETERS 9   //6
 #define NO_OF_PADS 12
 #define ADS_2 2
 #define ADS_1 1
 #define ADS_0 0
+#define MPR121_ADDR 0x5A
+#define MPR121_INT 3
 
 // BUTTONS
-const int NButtons = 4; //***  total number of push buttons
-const int buttonPin[NButtons] = {2, 3, 5, 7}; //*** define digital pins connected from button to Arduino; (ie {10, 16, 14, 15, 6, 7, 8, 9, 2, 3, 4, 5}; 12 buttons)
+const bool MPR121_DATASTREAM_ENABLE = false;
+const int NButtons = 12; //***  total number of push buttons
+const int buttonPin[NButtons] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}; //*** MPR121 electrodes
                                         //** Button NOTE will go up chromatically.  ie. if button is digi pin 2, C; Pin 3, C#; Pin 3, D; etc
                                    
 int buttonCState[NButtons] = {};        // stores the button current value
@@ -75,18 +79,46 @@ void setup() {
     Serial.println("Failed to initialize ADS.");
     while (1);
   }
+
+  if(!MPR121.begin(MPR121_ADDR))
+  {
+    Serial.println("error setting up MPR121");
+    while(1);
+  }
   
   // Buttons
-  // Initialize buttons with pull up resistors
-  for (int i = 0; i < NButtons; i++) {
-    pinMode(buttonPin[i], INPUT_PULLUP);
+  MPR121.setInterruptPin(MPR121_INT);
+
+  if (MPR121_DATASTREAM_ENABLE) 
+  {
+    MPR121.restoreSavedThresholds();
+    MPR121_Datastream.begin(&Serial);
+  } 
+  else 
+  {
+    MPR121.setTouchThreshold(40);  // this is the touch threshold - setting it low makes it more like a proximity trigger, default value is 40 for touch
+    MPR121.setReleaseThreshold(20);  // this is the release threshold - must ALWAYS be smaller than the touch threshold, default value is 20 for touch
   }
+
+  MPR121.setFFI(FFI_10);
+  MPR121.setSFI(SFI_10);
+  MPR121.setGlobalCDT(CDT_4US);  // reasonable for larger capacitances
+  
+  digitalWrite(LED_BUILTIN, HIGH);  // switch on user LED while auto calibrating electrodes
+  delay(1000);
+  MPR121.autoSetElectrodes();  // autoset all electrode settings
+  digitalWrite(LED_BUILTIN, LOW);
+  
+  // Initialize buttons with pull up resistors
+//  for (int i = 0; i < NButtons; i++) {
+//    pinMode(buttonPin[i], INPUT_PULLUP);
+//  }
 
 }
 
-
-// LOOP
-void loop() {
+//Main LOOP
+void loop() 
+{
 
   buttons();
   potentiometers();
@@ -96,35 +128,32 @@ void loop() {
 
 // BUTTONS
 void buttons() {
-
+  MPR121.updateAll();
   for (int i = 0; i < NButtons; i++) {
 
-    buttonCState[i] = digitalRead(buttonPin[i]);  // read pins from arduino
-
-
-    if ((millis() - lastDebounceTime[i]) > debounceDelay) {
-
-      if (buttonPState[i] != buttonCState[i]) {
-        lastDebounceTime[i] = millis();
-
-        if (buttonCState[i] == LOW) {
-
-          // Sends the MIDI note ON accordingly to the chosen board
-
-MIDI.sendNoteOn(note + i, 127, midiCh); // note, velocity, channel
-
-
+    buttonCState[i] = MPR121.isNewTouch(buttonPin[i]); // read state from MPR121
+    //buttonCState[i] = digitalRead(buttonPin[i]);  // read pins from arduino
+    
+//    if ((millis() - lastDebounceTime[i]) > debounceDelay) 
+//    {
+//      if (buttonPState[i] != buttonCState[i]) 
+//      {
+//        lastDebounceTime[i] = millis();
+        if (MPR121.isNewTouch(buttonPin[i]))
+        { // Sends the MIDI note ON based on a touch sensed on the particular MPR121 electrode
+          MIDI.sendNoteOn(note + i, 127, midiCh); // note, velocity, channel
         }
-        else {
-
-          // Sends the MIDI note OFF accordingly to the chosen board
-
-MIDI.sendNoteOn(note + i, 0, midiCh); // note, velocity, channel
-
+        else if(MPR121.isNewRelease(buttonPin[i]))
+        { // Sends the MIDI note OFF based on a release sensed on the particular MPR121 electrode
+          MIDI.sendNoteOn(note + i, 0, midiCh); // note, velocity, channel
         }
         buttonPState[i] = buttonCState[i];
-      }
-    }
+//      }
+//    }
+  }
+  if (MPR121_DATASTREAM_ENABLE) 
+  {
+    MPR121_Datastream.update();
   }
 }
 
@@ -135,7 +164,7 @@ void potentiometers() {
 
   for (int i = 0; i < NPots; i++) { // Loops through all the potentiometers
 
-    if(i < 6)
+    if(i< 6)
     {
       potCState[i] = analogRead(potPin[i]); // reads the pins from arduino
       midiCState[i] = map(potCState[i], 0, 1023, 127, 0); // Maps the reading of the potCState to a value usable in midi
