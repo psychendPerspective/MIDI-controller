@@ -120,6 +120,7 @@ void setup() {
 void loop() 
 {
 
+  Serial.println("Start of Loop");
   buttons();
   potentiometers();
 
