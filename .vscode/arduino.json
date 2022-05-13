@@ -1,0 +1,6 @@
+{
+    "board": "arduino:avr:uno",
+    "programmer": "arduino:avrisp",
+    "port": "COM5",
+    "sketch": "midi_test\\midi_test.ino"
+}
