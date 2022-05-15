@@ -19,11 +19,11 @@
 Adafruit_ADS1115 ads;  /* Use this for the 16-bit version */
 MIDI_CREATE_DEFAULT_INSTANCE(); 
 
-#define NO_OF_POTENTIOMETERS 9   //6
+#define NO_OF_POTENTIOMETERS 2  //6
 #define NO_OF_PADS 12
-#define ADS_2 2
-#define ADS_1 1
-#define ADS_0 0
+#define ADS_2 3
+#define ADS_1 2
+#define ADS_0 1
 #define MPR121_ADDR 0x5A
 #define MPR121_INT 3
 
@@ -44,7 +44,7 @@ unsigned long debounceDelay = 50;    //* the debounce time; increase if the outp
 // POTENTIOMETERS
 const int NPots = NO_OF_POTENTIOMETERS; //*** total numbers of pots (slide & rotary)
 //int16_t ads_0, ads_1, ads_2;
-const int potPin[NPots] = {A5, A4, A3, A2, A1, A0, ADS_2, ADS_1, ADS_0}; //*** Analog pins of each pot connected straight to the Arduino i.e 4 pots, {A3, A2, A1, A0};
+const int potPin[NPots] = {ADS_1, ADS_0}; //*** Analog pins of each pot connected to the Arduino directly and via ADS1115; // **A5, A4, A2, A0 ; A1, A3, ADS_2 -issues     
                                           // have nothing in the array if 0 pots {}
 
 int potCState[NPots] = {0}; // Current state of the pot; delete 0 if 0 pots
@@ -96,8 +96,8 @@ void setup() {
   } 
   else 
   {
-    MPR121.setTouchThreshold(40);  // this is the touch threshold - setting it low makes it more like a proximity trigger, default value is 40 for touch
-    MPR121.setReleaseThreshold(20);  // this is the release threshold - must ALWAYS be smaller than the touch threshold, default value is 20 for touch
+    MPR121.setTouchThreshold(10);  // this is the touch threshold - setting it low makes it more like a proximity trigger, default value is 40 for touch
+    MPR121.setReleaseThreshold(5);  // this is the release threshold - must ALWAYS be smaller than the touch threshold, default value is 20 for touch
   }
 
   MPR121.setFFI(FFI_10);
@@ -120,7 +120,7 @@ void setup() {
 void loop() 
 {
 
-  Serial.println("Make wall go burrrr");
+  //Serial.println("Make wall go burrrr");
   buttons();
   potentiometers();
 
@@ -165,16 +165,18 @@ void potentiometers() {
 
   for (int i = 0; i < NPots; i++) { // Loops through all the potentiometers
 
-    if(i< 6)
+    if(i< 2)
     {
-      potCState[i] = analogRead(potPin[i]); // reads the pins from arduino
-      midiCState[i] = map(potCState[i], 0, 1023, 127, 0); // Maps the reading of the potCState to a value usable in midi
-    }
-    else if ( i >= 6 && i <= NPots)
-    {
+      //potCState[i] = analogRead(potPin[i]); // reads the pins from arduino
+      //midiCState[i] = map(potCState[i], 0, 1023, 127, 0); // Maps the reading of the potCState to a value usable in midi
       potCState[i] = ads.readADC_SingleEnded(potPin[i]);
       midiCState[i] = map(potCState[i], 0, 26720, 127, 0); // Maps the reading of the potCState to a value usable in midi
     }
+//    else if ( i >= 6 && i <= NPots)
+//    {
+//      potCState[i] = ads.readADC_SingleEnded(potPin[i]);
+//      midiCState[i] = map(potCState[i], 0, 26720, 127, 0); // Maps the reading of the potCState to a value usable in midi
+//    }
     //potCState[i] = analogRead(potPin[i]); // reads the pins from arduino
 
     //midiCState[i] = map(potCState[i], 0, 1023, 127, 0); // Maps the reading of the potCState to a value usable in midi
